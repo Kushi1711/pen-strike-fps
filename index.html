@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TACTICAL STRIKE - Camera Controlled FPS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Arial', sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ===== UI OVERLAYS ===== */
+        .ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        /* Main Menu */
+        #mainMenu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            pointer-events: auto;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        #mainMenu.hidden {
+            display: none;
+        }
+
+        .menu-title {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #ff4444;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 20px rgba(255, 68, 68, 0.8);
+            animation: titlePulse 1s ease-in-out 0.3s both;
+            margin-bottom: 10px;
+        }
+
+        @keyframes titlePulse {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        .menu-subtitle {
+            font-size: 1.2rem;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 60px;
+            animation: titlePulse 1s ease-in-out 0.5s both;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            animation: titlePulse 1s ease-in-out 0.7s both;
+        }
+
+        button {
+            padding: 15px 50px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border: 2px solid #ff4444;
+            background: rgba(255, 68, 68, 0.1);
+            color: #ff4444;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            pointer-events: auto;
+            min-width: 300px;
+            text-align: center;
+        }
+
+        button:hover {
+            background: rgba(255, 68, 68, 0.3);
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.6);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        /* Calibration Screen */
+        #calibrationScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            pointer-events: auto;
+        }
+
+        #calibrationScreen.active {
+            display: flex;
+        }
+
+        .calibration-text {
+            font-size: 2rem;
+            color: #fff;
+            text-transform: uppercase;
+            text-align: center;
+            margin-bottom: 40px;
+            letter-spacing: 2px;
+        }
+
+        .calibration-center {
+            width: 100px;
+            height: 100px;
+            border: 3px solid #ff4444;
+            border-radius: 50%;
+            position: relative;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7); }
+            50% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(255, 68, 68, 0); }
+        }
+
+        .calibration-center::after {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #ff4444;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .calibration-info {
+            position: absolute;
+            bottom: 30px;
+            color: #aaa;
+            font-size: 1rem;
+            text-align: center;
+        }
+
+        /* Countdown */
+        #countdownOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            pointer-events: none;
+        }
+
+        #countdownOverlay.active {
+            display: flex;
+        }
+
+        .countdown-number {
+            font-size: 8rem;
+            font-weight: bold;
+            color: #ff4444;
+            text-shadow: 0 0 30px rgba(255, 68, 68, 0.9);
+            animation: countdownScale 1s ease-out;
+        }
+
+        @keyframes countdownScale {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        /* In-Game HUD */
+        .hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .hud-top-left {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5rem;
+            color: #0f0;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+
+        .hud-top-right {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.5rem;
+            color: #0f0;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            text-align: right;
+        }
+
+        .hud-bottom-right {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 1.5rem;
+            color: #0f0;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            text-align: right;
+        }
+
+        .hud-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Crosshair */
+        .crosshair {
+            width: 30px;
+            height: 30px;
+            position: relative;
+        }
+
+        .crosshair-line {
+            position: absolute;
+            background: #0f0;
+            box-shadow: 0 0 5px #0f0;
+        }
+
+        .crosshair-h {
+            width: 20px;
+            height: 2px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .crosshair-v {
+            width: 2px;
+            height: 20px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .crosshair-dot {
+            width: 4px;
+            height: 4px;
+            background: #0f0;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 5px #0f0;
+        }
+
+        /* Hit Marker */
+        .hit-marker {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+            display: none;
+        }
+
+        .hit-marker.active {
+            display: block;
+            animation: hitMarkerPulse 0.3s ease-out;
+        }
+
+        @keyframes hitMarkerPulse {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+        }
+
+        .hit-marker-line {
+            position: absolute;
+            background: #ff4444;
+            box-shadow: 0 0 10px #ff4444;
+        }
+
+        .hit-marker-h {
+            width: 30px;
+            height: 2px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .hit-marker-v {
+            width: 2px;
+            height: 30px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Notifications */
+        .notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ff4444;
+            text-shadow: 0 0 20px rgba(255, 68, 68, 0.9);
+            text-transform: uppercase;
+            pointer-events: none;
+            animation: notificationPop 0.5s ease-out;
+        }
+
+        @keyframes notificationPop {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+
+        /* Muzzle Flash */
+        .muzzle-flash {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            pointer-events: none;
+            display: none;
+        }
+
+        .muzzle-flash.active {
+            display: block;
+            animation: muzzleFlashAnim 0.1s ease-out;
+        }
+
+        @keyframes muzzleFlashAnim {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* Camera Status */
+        .camera-status {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-size: 0.9rem;
+            color: #0f0;
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+            font-family: 'Courier New', monospace;
+            pointer-events: none;
+        }
+
+        .camera-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #0f0;
+            border-radius: 50%;
+            margin-right: 5px;
+            box-shadow: 0 0 5px #0f0;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .pen-status {
+            margin-top: 5px;
+        }
+
+        /* Game Over Screen */
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            pointer-events: auto;
+        }
+
+        #gameOverScreen.active {
+            display: flex;
+        }
+
+        .game-over-title {
+            font-size: 3rem;
+            color: #ff4444;
+            text-transform: uppercase;
+            margin-bottom: 30px;
+            letter-spacing: 3px;
+        }
+
+        .game-over-stats {
+            font-size: 1.5rem;
+            color: #0f0;
+            text-align: center;
+            margin-bottom: 40px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .game-over-stats div {
+            margin: 10px 0;
+        }
+
+        /* Instructions */
+        #instructionsScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            pointer-events: auto;
+            overflow-y: auto;
+            padding: 40px;
+        }
+
+        #instructionsScreen.active {
+            display: flex;
+        }
+
+        .instructions-title {
+            font-size: 2.5rem;
+            color: #ff4444;
+            text-transform: uppercase;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+
+        .instructions-content {
+            max-width: 700px;
+            color: #aaa;
+            line-height: 1.8;
+            font-size: 1rem;
+            text-align: left;
+        }
+
+        .instructions-content h3 {
+            color: #0f0;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .instructions-content p {
+            margin-bottom: 15px;
+        }
+
+        .back-button {
+            margin-top: 40px;
+        }
+
+        /* Loading indicator */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 255, 0, 0.3);
+            border-top-color: #0f0;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .menu-title {
+                font-size: 2.5rem;
+            }
+
+            .menu-subtitle {
+                font-size: 1rem;
+            }
+
+            button {
+                padding: 12px 30px;
+                font-size: 1rem;
+                min-width: 200px;
+            }
+
+            .hud-top-left, .hud-top-right, .hud-bottom-right {
+                font-size: 1rem;
+            }
+
+            .countdown-number {
+                font-size: 5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Menu -->
+    <div id="mainMenu">
+        <div class="menu-title">TACTICAL STRIKE</div>
+        <div class="menu-subtitle">Camera Controlled FPS</div>
+        <div class="menu-buttons">
+            <button id="startGameBtn">[ START GAME ]</button>
+            <button id="calibrateBtn">[ CALIBRATE CAMERA ]</button>
+            <button id="howToPlayBtn">[ HOW TO PLAY ]</button>
+        </div>
+    </div>
+
+    <!-- Calibration Screen -->
+    <div id="calibrationScreen">
+        <div class="calibration-text">POINT YOUR PEN AT THE CENTER OF THE SCREEN</div>
+        <div class="calibration-center"></div>
+        <div class="calibration-info">
+            Hold steady for calibration...<span class="loading"></span>
+        </div>
+    </div>
+
+    <!-- Instructions Screen -->
+    <div id="instructionsScreen">
+        <div class="instructions-title">HOW TO PLAY</div>
+        <div class="instructions-content">
+            <h3>✓ Setup</h3>
+            <p>Position your webcam to see your hand and pen clearly. Make sure you have adequate lighting.</p>
+
+            <h3>✓ Aiming</h3>
+            <p>Hold a pen in your hand and move it in front of the camera. The crosshair will follow your pen's position. Move it to aim at enemies.</p>
+
+            <h3>✓ Shooting</h3>
+            <p>To fire, make a quick forward thrust motion with your pen toward the camera. This gesture triggers the shot.</p>
+
+            <h3>✓ Combat</h3>
+            <p>Eliminate all enemies before they defeat you. Your health is shown top-left. Kill count and ammunition shown top-right and bottom-right.</p>
+
+            <h3>✓ Waves</h3>
+            <p>Complete waves of enemies with increasing difficulty. Each kill adds to your score.</p>
+
+            <h3>✓ Health & Ammo</h3>
+            <p>Manage your ammunition carefully. Reloading happens automatically when you run out. Heal by completing waves (health regenerates).</p>
+
+            <h3>✓ Tips</h3>
+            <p>• Keep steady aim for accurate shots<br>
+            • Quick, decisive shooting gestures work best<br>
+            • Take cover behind environmental objects<br>
+            • Stay aware of multiple enemies<br>
+            • Listen for audio cues</p>
+
+            <button id="backBtn" class="back-button">[ BACK ]</button>
+        </div>
+    </div>
+
+    <!-- Countdown Overlay -->
+    <div id="countdownOverlay"></div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen">
+        <div class="game-over-title">MISSION FAILED</div>
+        <div class="game-over-stats">
+            <div>KILLS: <span id="finalKills">0</span></div>
+            <div>WAVES COMPLETED: <span id="finalWaves">0</span></div>
+            <div>ACCURACY: <span id="finalAccuracy">0</span>%</div>
+        </div>
+        <button id="restartBtn">[ RESTART ]</button>
+    </div>
+
+    <!-- Game UI Container -->
+    <div class="ui-container">
+        <div class="hud">
+            <div class="hud-top-left">
+                HEALTH <span id="healthDisplay">100</span>
+            </div>
+            <div class="hud-top-right">
+                KILLS <span id="killsDisplay">00</span>
+                <br>
+                WAVE <span id="waveDisplay">1</span>
+            </div>
+            <div class="hud-bottom-right">
+                AMMO <span id="ammoDisplay">30</span> / <span id="ammoMaxDisplay">90</span>
+            </div>
+            <div class="hud-center">
+                <div class="crosshair" id="crosshair">
+                    <div class="crosshair-line crosshair-h"></div>
+                    <div class="crosshair-line crosshair-v"></div>
+                    <div class="crosshair-dot"></div>
+                </div>
+                <div class="hit-marker" id="hitMarker">
+                    <div class="hit-marker-line hit-marker-h"></div>
+                    <div class="hit-marker-line hit-marker-v"></div>
+                </div>
+                <div class="muzzle-flash" id="muzzleFlash"></div>
+            </div>
+            <div class="camera-status">
+                <span class="camera-indicator"></span>
+                <span id="cameraStatusText">CAMERA ACTIVE</span>
+                <div class="pen-status" id="penStatus">PEN NOT DETECTED</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js and dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    
+    <!-- Game Scripts -->
+    <script src="audio.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
